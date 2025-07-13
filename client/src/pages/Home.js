@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-
 import { FaFileAlt } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
+
+const BACKEND_UPLOAD_URL = 'https://doc-editor-backend.onrender.com/api/upload';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -9,7 +10,7 @@ export default function Home() {
   const [fileName, setFileName] = useState('');
 
   const handleFileChange = (e) => {
-    const selectedFile = e.target.files[0];
+    const selectedFile = e.target.files?.[0];
     if (selectedFile) {
       setFile(selectedFile);
       setFileName(selectedFile.name);
@@ -26,7 +27,7 @@ export default function Home() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://online-document-editor-backend-xyz.onrender.com/api/upload', {
+      const response = await fetch(BACKEND_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       });
@@ -47,28 +48,30 @@ export default function Home() {
   return (
     <div className="home-container">
       {/* Header */}
-      <h1>REAL-TIME COLLABORATIVE DOCUMENT EDITOR</h1>
-      <p>EDIT DOCUMENTS HERE</p>
+      <h1 className="text-3xl font-bold text-orange-600 mb-2">
+        REAL-TIME COLLABORATIVE DOCUMENT EDITOR
+      </h1>
+      <p className="mb-6 text-gray-700">EDIT DOCUMENTS HERE</p>
 
       {/* Instructions Box */}
-      <div className="instructions-box">
-        <h3>INSTRUCTIONS:</h3>
-        <ul>
+      <div className="instructions-box bg-orange-100 p-4 rounded-md shadow mb-6 max-w-3xl">
+        <h3 className="text-lg font-semibold mb-2">INSTRUCTIONS:</h3>
+        <ul className="list-disc list-inside text-sm text-gray-800">
           <li>
-            Uses frameworks like <span className="highlight">React.js</span> for a dynamic and responsive UI.
+            Uses frameworks like <span className="font-medium text-orange-600">React.js</span> for a dynamic UI.
           </li>
           <li>
-            Uses <span className="highlight">Node.js</span>, <span className="highlight">Python (Django/Flask)</span> for backend framework.
+            Backend powered by <span className="font-medium text-orange-600">Node.js</span> and optionally Python frameworks.
           </li>
           <li>
-            Uses <span className="highlight">MongoDB</span> for data storage.
+            Stores documents using <span className="font-medium text-orange-600">MongoDB</span>.
           </li>
         </ul>
       </div>
 
       {/* File Upload Section */}
-      <div className="file-box">
-        <label htmlFor="file">Choose File:</label><br />
+      <div className="file-box flex flex-col items-center gap-3 p-4 bg-white border rounded shadow max-w-md w-full">
+        <label htmlFor="file" className="font-medium">Choose File:</label>
         <input
           type="file"
           accept=".txt,.doc,.docx,.pdf"
@@ -76,13 +79,18 @@ export default function Home() {
         />
 
         {fileName && (
-          <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }}>
-            <FaFileAlt color="#ea580c" />
+          <div className="flex items-center gap-2 text-sm text-gray-700">
+            <FaFileAlt className="text-orange-500" />
             <span>{fileName}</span>
           </div>
         )}
 
-        <button onClick={handleSubmit}>UPLOAD</button>
+        <button
+          onClick={handleSubmit}
+          className="mt-2 px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+        >
+          UPLOAD
+        </button>
       </div>
     </div>
   );
