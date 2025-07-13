@@ -13,49 +13,53 @@ const fsPromises = require('fs/promises');
 const cors       = require('cors');
 require('dotenv').config();
 
-// ───────────────────────────────────────────────────────────
-//  Express & Server Setup
-// ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────
+//  Express App and HTTP Server
+// ─────────────────────────────────────────
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: '*' } });
+const io = new Server(server, {
+  cors: {
+    origin: '*', // Allow all for simplicity; tighten for security
+    methods: ['GET', 'POST'],
+  },
+});
 
 app.use(cors());
 app.use(express.json());
 
-// ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 //  MongoDB Setup
-// ───────────────────────────────────────────────────────────
-if (!process.env.MONGO_URI) {
-  console.error('❌  MONGO_URI not found in .env');
+// ─────────────────────────────────────────
+const MONGO_URI = process.env.MONGO_URI;
+if (!MONGO_URI) {
+  console.error('❌ MONGO_URI missing from .env');
   process.exit(1);
 }
 
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('✅  MongoDB connected'))
+mongoose.connect(MONGO_URI)
+  .then(() => console.log('✅ MongoDB connected'))
   .catch((err) => {
-    console.error('❌  MongoDB connection error:', err);
+    console.error('❌ MongoDB connection error:', err);
     process.exit(1);
   });
 
 const DocumentSchema = new mongoose.Schema({
-  _id: String, // Use _id as document ID
+  _id: String,
   title: String,
   content: Object,
   updatedAt: { type: Date, default: Date.now },
 });
 const Document = mongoose.model('Document', DocumentSchema);
 
-// ───────────────────────────────────────────────────────────
-//  Ensure uploads folder exists & serve it statically
-// ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────
+//  File Uploads - Setup
+// ─────────────────────────────────────────
 const uploadsDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+
 app.use('/uploads', express.static(uploadsDir));
 
-// ───────────────────────────────────────────────────────────
-//  File‑upload endpoint  /api/upload
-// ───────────────────────────────────────────────────────────
 const upload = multer({ dest: uploadsDir });
 
 app.post('/api/upload', upload.single('file'), async (req, res) => {
@@ -80,23 +84,28 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       return res.status(415).json({ error: 'Unsupported file type' });
     }
 
-    res.json({ text, filename: file.filename, url: `/uploads/${file.filename}` });
+    res.json({
+      text,
+      filename: file.originalname,
+      path: `/uploads/${file.filename}`
+    });
   } catch (err) {
-    console.error('File-parse error:', err);
-    res.status(500).json({ error: 'Failed to parse file' });
+    console.error('❌ File parsing error:', err);
+    res.status(500).json({ error: 'Failed to parse uploaded file' });
   }
 });
 
-// ───────────────────────────────────────────────────────────
-//  REST  /api/doc   save / load
-// ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────
+//  RESTful API (Optional)
+// ─────────────────────────────────────────
 app.post('/api/doc', async (req, res) => {
   try {
     const { title, content } = req.body;
     const doc = await Document.create({ title, content });
     res.json(doc);
-  } catch {
-    res.status(500).json({ error: 'Failed to create document' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to save document' });
   }
 });
 
@@ -105,24 +114,24 @@ app.get('/api/doc/:id', async (req, res) => {
     const doc = await Document.findById(req.params.id);
     if (!doc) return res.status(404).json({ error: 'Document not found' });
     res.json(doc);
-  } catch {
-    res.status(500).json({ error: 'Failed to retrieve document' });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'Failed to fetch document' });
   }
 });
 
-// ───────────────────────────────────────────────────────────
-//  Helper to Find or Create Document
-// ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────
+//  Socket.IO Collaboration Logic
+// ─────────────────────────────────────────
 async function findOrCreateDocument(id) {
-  if (id == null) return null;
+  if (id == null) return;
+
   const doc = await Document.findById(id);
   if (doc) return doc;
-  return await Document.create({ _id: id, title: 'Untitled', content: '' });
+
+  return await Document.create({ _id: id, content: '' });
 }
 
-// ───────────────────────────────────────────────────────────
-//  Socket.io Real-Time Editor
-// ───────────────────────────────────────────────────────────
 io.on('connection', (socket) => {
   console.log('⚡ Client connected:', socket.id);
 
@@ -130,27 +139,29 @@ io.on('connection', (socket) => {
     const document = await findOrCreateDocument(docId);
     socket.join(docId);
     socket.emit('load-document', document.content);
-    console.log(`📄 ${socket.id} loaded document ${docId}`);
 
-    socket.on('send-changes', (delta) => {
+    socket.on('send-changes', ({ docId, delta }) => {
       socket.broadcast.to(docId).emit('receive-changes', delta);
     });
 
-    socket.on('save-document', async (data) => {
+    socket.on('save-document', async ({ docId, content }) => {
       await Document.findByIdAndUpdate(docId, {
-        content: data,
-        updatedAt: Date.now(),
+        content,
+        updatedAt: new Date(),
       });
     });
   });
 
   socket.on('disconnect', () => {
-    console.log(`✖️  ${socket.id} disconnected`);
+    console.log(`✖ Client disconnected: ${socket.id}`);
   });
 });
 
-// ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 //  Start Server
-// ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Backend on http://localhost:${PORT}`));
+server.listen(PORT, () =>
+  console.log(`🚀 Server running at http://localhost:${PORT}`)
+);
+
