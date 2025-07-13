@@ -3,6 +3,10 @@ import React, { useEffect, useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import { io } from 'socket.io-client';
 import { useLocation } from 'react-router-dom';
+import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
+import { Document, Packer, Paragraph, TextRun } from 'docx';
+import { saveAs } from 'file-saver';
 
 /* ── constants ───────────────────────────────────────────── */
 const SAVE_INTERVAL_MS = 2000;
@@ -19,7 +23,6 @@ export default function Editor() {
   const location = useLocation();
   const initialContent = location.state?.initialContent || '';
 
-  /* 1. connect socket once */
   useEffect(() => {
     const s = io(BACKEND_BASE_URL, {
       path: SOCKET_PATH,
@@ -29,7 +32,6 @@ export default function Editor() {
     return () => s.disconnect();
   }, []);
 
-  /* 2. load/join document */
   useEffect(() => {
     if (!socket || !quill) return;
 
@@ -42,7 +44,6 @@ export default function Editor() {
     socket.emit('get-document', DOCUMENT_ID);
   }, [socket, quill, initialContent]);
 
-  /* 3. outgoing changes */
   useEffect(() => {
     if (!socket || !quill) return;
 
@@ -55,7 +56,6 @@ export default function Editor() {
     return () => quill.off('text-change', handler);
   }, [socket, quill]);
 
-  /* 4. incoming changes */
   useEffect(() => {
     if (!socket || !quill) return;
 
@@ -67,7 +67,6 @@ export default function Editor() {
     return () => socket.off('receive-changes', handler);
   }, [socket, quill]);
 
-  /* 5. autosave */
   useEffect(() => {
     if (!socket || !quill) return;
 
@@ -81,7 +80,6 @@ export default function Editor() {
     return () => clearInterval(interval);
   }, [socket, quill]);
 
-  /* 6. initialize Quill */
   useEffect(() => {
     if (!quillRef.current) return;
     const editor = quillRef.current.getEditor();
@@ -90,7 +88,6 @@ export default function Editor() {
     setQuill(editor);
   }, []);
 
-  /* 7. local file upload from inside editor */
   const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !quill) return;
@@ -116,7 +113,38 @@ export default function Editor() {
     }
   };
 
-  /* UI */
+  const handleDownloadTxt = () => {
+    const text = quill.getText();
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    saveAs(blob, 'document.txt');
+  };
+
+  const handleDownloadPdf = async () => {
+    const editorElement = document.querySelector('.ql-editor');
+    const canvas = await html2canvas(editorElement);
+    const imgData = canvas.toDataURL('image/png');
+
+    const pdf = new jsPDF();
+    const width = pdf.internal.pageSize.getWidth();
+    const height = (canvas.height * width) / canvas.width;
+    pdf.addImage(imgData, 'PNG', 0, 0, width, height);
+    pdf.save('document.pdf');
+  };
+
+  const handleDownloadDocx = async () => {
+    const text = quill.getText();
+    const doc = new Document({
+      sections: [
+        {
+          properties: {},
+          children: [new Paragraph({ children: [new TextRun(text)] })],
+        },
+      ],
+    });
+    const blob = await Packer.toBlob(doc);
+    saveAs(blob, 'document.docx');
+  };
+
   return (
     <div className="min-h-screen bg-white flex flex-col items-center py-6 px-4">
       <h2 className="text-2xl font-bold text-orange-600 mb-4">
@@ -130,6 +158,27 @@ export default function Editor() {
         className="mb-4"
       />
 
+      <div className="flex gap-3 mb-4">
+        <button
+          onClick={handleDownloadTxt}
+          className="px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600"
+        >
+          Download TXT
+        </button>
+        <button
+          onClick={handleDownloadPdf}
+          className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          Download PDF
+        </button>
+        <button
+          onClick={handleDownloadDocx}
+          className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+        >
+          Download DOCX
+        </button>
+      </div>
+
       <div className="w-full max-w-4xl">
         <ReactQuill
           ref={quillRef}
@@ -140,3 +189,4 @@ export default function Editor() {
     </div>
   );
 }
+
