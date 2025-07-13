@@ -20,7 +20,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: '*', // Allow all for simplicity; tighten for security
+    origin: '*',
     methods: ['GET', 'POST'],
   },
 });
@@ -56,7 +56,7 @@ const Document = mongoose.model('Document', DocumentSchema);
 //  File Uploads - Setup
 // ─────────────────────────────────────────
 const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
+if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
 
 app.use('/uploads', express.static(uploadsDir));
 
@@ -64,13 +64,18 @@ const upload = multer({ dest: uploadsDir });
 
 app.post('/api/upload', upload.single('file'), async (req, res) => {
   const file = req.file;
-  if (!file) return res.status(400).json({ error: 'No file uploaded' });
+
+  if (!file) {
+    console.error('❌ No file uploaded');
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
 
   const ext = path.extname(file.originalname).toLowerCase();
   let text = '';
 
   try {
     const data = await fsPromises.readFile(file.path);
+    console.log(`📥 Uploaded file: ${file.originalname} (${ext})`);
 
     if (ext === '.txt') {
       text = data.toString();
@@ -81,22 +86,23 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
       const out = await pdfParse(data);
       text = out.text;
     } else {
+      console.error('❌ Unsupported file type:', ext);
       return res.status(415).json({ error: 'Unsupported file type' });
     }
 
-    res.json({
+    return res.json({
       text,
       filename: file.originalname,
-      path: `/uploads/${file.filename}`
+      path: `/uploads/${file.filename}`,
     });
   } catch (err) {
-    console.error('❌ File parsing error:', err);
-    res.status(500).json({ error: 'Failed to parse uploaded file' });
+    console.error('❌ Error parsing uploaded file:', err);
+    return res.status(500).json({ error: 'Failed to parse uploaded file' });
   }
 });
 
 // ─────────────────────────────────────────
-//  RESTful API (Optional)
+//  REST API for Document Create/Retrieve
 // ─────────────────────────────────────────
 app.post('/api/doc', async (req, res) => {
   try {
@@ -104,8 +110,8 @@ app.post('/api/doc', async (req, res) => {
     const doc = await Document.create({ title, content });
     res.json(doc);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Failed to save document' });
+    console.error('❌ Error creating doc:', err);
+    res.status(500).json({ error: 'Failed to create document' });
   }
 });
 
@@ -115,7 +121,7 @@ app.get('/api/doc/:id', async (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Document not found' });
     res.json(doc);
   } catch (err) {
-    console.error(err);
+    console.error('❌ Error retrieving doc:', err);
     res.status(500).json({ error: 'Failed to fetch document' });
   }
 });
@@ -125,11 +131,11 @@ app.get('/api/doc/:id', async (req, res) => {
 // ─────────────────────────────────────────
 async function findOrCreateDocument(id) {
   if (id == null) return;
-
-  const doc = await Document.findById(id);
-  if (doc) return doc;
-
-  return await Document.create({ _id: id, content: '' });
+  let doc = await Document.findById(id);
+  if (!doc) {
+    doc = await Document.create({ _id: id, title: 'Untitled', content: '' });
+  }
+  return doc;
 }
 
 io.on('connection', (socket) => {
@@ -161,7 +167,6 @@ io.on('connection', (socket) => {
 //  Start Server
 // ─────────────────────────────────────────
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () =>
-  console.log(`🚀 Server running at http://localhost:${PORT}`)
-);
-
+server.listen(PORT, () => {
+  console.log(`🚀 Server running at http://localhost:${PORT}`);
+});
