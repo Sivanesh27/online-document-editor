@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { FaFileAlt } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 
-const BACKEND_UPLOAD_URL = 'https://doc-editor-backend.onrender.com/api/upload';
+const BACKEND_UPLOAD_URL = 'https://document-editor-backend.onrender.com/api/upload';
 
 export default function Home() {
   const navigate = useNavigate();
