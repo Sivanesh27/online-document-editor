@@ -8,6 +8,7 @@ export default function Home() {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [fileName, setFileName] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = (e) => {
     const selectedFile = e.target.files?.[0];
@@ -25,12 +26,17 @@ export default function Home() {
 
     const formData = new FormData();
     formData.append('file', file);
+    setIsUploading(true);
 
     try {
       const response = await fetch(BACKEND_UPLOAD_URL, {
         method: 'POST',
         body: formData,
       });
+
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
 
       const data = await response.json();
 
@@ -40,31 +46,33 @@ export default function Home() {
         alert('Failed to extract content from the file.');
       }
     } catch (err) {
-      console.error('Upload error:', err);
-      alert('File upload failed.');
+      console.error('❌ Upload error:', err);
+      alert('File upload failed. Please try a different file or check backend logs.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
   return (
-    <div className="home-container">
+    <div className="home-container min-h-screen flex flex-col items-center justify-start p-6 bg-gray-50">
       {/* Header */}
-      <h1 className="text-3xl font-bold text-orange-600 mb-2">
+      <h1 className="text-3xl font-bold text-orange-600 mb-2 text-center">
         REAL-TIME COLLABORATIVE DOCUMENT EDITOR
       </h1>
-      <p className="mb-6 text-gray-700">EDIT DOCUMENTS HERE</p>
+      <p className="mb-6 text-gray-700 text-center">EDIT DOCUMENTS HERE</p>
 
       {/* Instructions Box */}
       <div className="instructions-box bg-orange-100 p-4 rounded-md shadow mb-6 max-w-3xl">
         <h3 className="text-lg font-semibold mb-2">INSTRUCTIONS:</h3>
         <ul className="list-disc list-inside text-sm text-gray-800">
           <li>
-            Uses frameworks like <span className="font-medium text-orange-600">React.js</span> for a dynamic UI.
+            Uses <span className="font-medium text-orange-600">React.js</span> for a dynamic UI.
           </li>
           <li>
-            Backend powered by <span className="font-medium text-orange-600">Node.js</span> and optionally Python frameworks.
+            Backend with <span className="font-medium text-orange-600">Node.js</span>, file parsing, and real-time sync.
           </li>
           <li>
-            Stores documents using <span className="font-medium text-orange-600">MongoDB</span>.
+            MongoDB is used to store collaborative document content.
           </li>
         </ul>
       </div>
@@ -76,6 +84,7 @@ export default function Home() {
           type="file"
           accept=".txt,.doc,.docx,.pdf"
           onChange={handleFileChange}
+          className="text-sm"
         />
 
         {fileName && (
@@ -87,11 +96,15 @@ export default function Home() {
 
         <button
           onClick={handleSubmit}
-          className="mt-2 px-4 py-2 bg-orange-600 text-white rounded hover:bg-orange-700"
+          disabled={isUploading}
+          className={`mt-2 px-4 py-2 text-white rounded ${
+            isUploading ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
+          }`}
         >
-          UPLOAD
+          {isUploading ? 'Uploading...' : 'UPLOAD'}
         </button>
       </div>
     </div>
   );
 }
+
