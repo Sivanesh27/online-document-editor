@@ -1,12 +1,11 @@
 {
-  "name": "codtech-task3",
+  "name": "online-document-editor",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build"
-  }
-
+  },
   "dependencies": {
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
@@ -43,3 +42,4 @@
     "tailwindcss": "^4.1.11"
   }
 }
+
