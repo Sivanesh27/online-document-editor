@@ -7,7 +7,7 @@ import { io } from 'socket.io-client';
 import { useLocation } from 'react-router-dom';
 
 const SAVE_INTERVAL_MS = 2000;
-const SOCKET_SERVER_URL = 'http://localhost:5000';
+const SOCKET_SERVER_URL = 'https://doc-editor-backend.onrender.com';
 const DOCUMENT_ID = 'global-doc';
 
 export default function Editor() {
@@ -97,7 +97,7 @@ export default function Editor() {
     formData.append('file', selectedFile);
 
     try {
-      const res = await fetch('http://localhost:5000/api/upload', {
+      const res = await fetch('https://doc-editor-backend.onrender.com/api/upload', {
         method: 'POST',
         body: formData,
       });
