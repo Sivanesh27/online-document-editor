@@ -26,7 +26,7 @@ export default function Home() {
     formData.append('file', file);
 
     try {
-      const response = await fetch('https://doc-editor-backend.onrender.com/api/upload', {
+      const response = await fetch('https://online-document-editor-backend-xyz.onrender.com/api/upload', {
         method: 'POST',
         body: formData,
       });
