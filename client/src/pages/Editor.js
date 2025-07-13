@@ -97,7 +97,7 @@ export default function Editor() {
     formData.append('file', selectedFile);
 
     try {
-      const res = await fetch('https://doc-editor-backend.onrender.com/api/upload', {
+      const res = await fetch('https://online-document-editor-backend-xyz.onrender.com/api/upload', {
         method: 'POST',
         body: formData,
       });
