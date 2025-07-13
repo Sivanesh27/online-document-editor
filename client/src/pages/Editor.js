@@ -1,45 +1,40 @@
-/* ─────────  src/pages/Editor.js  ───────── */
 import 'react-quill/dist/quill.snow.css';
-
 import React, { useEffect, useRef, useState } from 'react';
 import ReactQuill from 'react-quill';
 import { io } from 'socket.io-client';
 import { useLocation } from 'react-router-dom';
 
 /* ── constants ───────────────────────────────────────────── */
-const SAVE_INTERVAL_MS   = 2000;
-const BACKEND_BASE_URL   = 'https://doc-editor-backend.onrender.com';   // <- your Render backend
-const SOCKET_PATH        = '/socket.io';                                // default
-const DOCUMENT_ID        = 'global-doc';
+const SAVE_INTERVAL_MS = 2000;
+const BACKEND_BASE_URL = 'https://document-editor-backend.onrender.com';
+const SOCKET_PATH = '/socket.io';
+const DOCUMENT_ID = 'global-doc';
 
 /* ─────────────────────────────────────────────────────────── */
 export default function Editor() {
-  /* sockets & quill refs */
   const [socket, setSocket] = useState(null);
-  const [quill , setQuill ] = useState(null);
-  const quillRef            = useRef();
+  const [quill, setQuill] = useState(null);
+  const quillRef = useRef();
 
-  /* if we arrived from Home with a file’s text */
-  const { state }           = useLocation();
-  const initialContent      = state?.initialContent ?? '';
+  const location = useLocation();
+  const initialContent = location.state?.initialContent || '';
 
-  /* ── 1. connect socket once ─────────────────────────────── */
+  /* 1. connect socket once */
   useEffect(() => {
     const s = io(BACKEND_BASE_URL, {
       path: SOCKET_PATH,
-      transports: ['websocket'],   // Render likes pure WS; avoids polling timeouts
+      transports: ['websocket'],
     });
     setSocket(s);
     return () => s.disconnect();
   }, []);
 
-  /* ── 2. load / join document ────────────────────────────── */
+  /* 2. load/join document */
   useEffect(() => {
     if (!socket || !quill) return;
 
-    socket.once('load-document', serverContent => {
+    socket.once('load-document', (serverContent) => {
       quill.setContents(serverContent || '');
-      /* overwrite with file text if we came from Home */
       if (initialContent) quill.setText(initialContent);
       quill.enable();
     });
@@ -47,7 +42,7 @@ export default function Editor() {
     socket.emit('get-document', DOCUMENT_ID);
   }, [socket, quill, initialContent]);
 
-  /* ── 3. outgoing user edits ─────────────────────────────── */
+  /* 3. outgoing changes */
   useEffect(() => {
     if (!socket || !quill) return;
 
@@ -60,63 +55,72 @@ export default function Editor() {
     return () => quill.off('text-change', handler);
   }, [socket, quill]);
 
-  /* ── 4. incoming edits from others ───────────────────────── */
+  /* 4. incoming changes */
   useEffect(() => {
     if (!socket || !quill) return;
 
-    const handler = delta => quill.updateContents(delta);
+    const handler = (delta) => {
+      quill.updateContents(delta);
+    };
+
     socket.on('receive-changes', handler);
     return () => socket.off('receive-changes', handler);
   }, [socket, quill]);
 
-  /* ── 5. autosave every 2 s ──────────────────────────────── */
+  /* 5. autosave */
   useEffect(() => {
     if (!socket || !quill) return;
-    const id = setInterval(() => {
+
+    const interval = setInterval(() => {
       socket.emit('save-document', {
-        docId  : DOCUMENT_ID,
+        docId: DOCUMENT_ID,
         content: quill.getContents(),
       });
     }, SAVE_INTERVAL_MS);
-    return () => clearInterval(id);
+
+    return () => clearInterval(interval);
   }, [socket, quill]);
 
-  /* ── 6. create Quill instance once ──────────────────────── */
+  /* 6. initialize Quill */
   useEffect(() => {
     if (!quillRef.current) return;
     const editor = quillRef.current.getEditor();
     editor.disable();
-    editor.setText('Loading …');
+    editor.setText('Loading...');
     setQuill(editor);
   }, []);
 
-  /* ── 7. optional local file upload inside Editor ────────── */
-  const handleFileChange = async e => {
+  /* 7. local file upload from inside editor */
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !quill) return;
 
-    const fd = new FormData();
-    fd.append('file', file);
+    const formData = new FormData();
+    formData.append('file', file);
 
     try {
-      const res  = await fetch(`${BACKEND_BASE_URL}/api/upload`, {
+      const res = await fetch(`${BACKEND_BASE_URL}/api/upload`, {
         method: 'POST',
-        body  : fd,
+        body: formData,
       });
+
       const data = await res.json();
-      data?.text ? quill.setText(data.text)
-                 : alert('Could not extract text from that file.');
+      if (data?.text) {
+        quill.setText(data.text);
+      } else {
+        alert('Could not extract text from this file.');
+      }
     } catch (err) {
-      console.error(err);
-      alert('File upload failed.');
+      console.error('❌ Upload failed:', err);
+      alert('File upload failed. Try a .txt, .pdf, or .docx file.');
     }
   };
 
-  /* ── render ─────────────────────────────────────────────── */
+  /* UI */
   return (
     <div className="min-h-screen bg-white flex flex-col items-center py-6 px-4">
       <h2 className="text-2xl font-bold text-orange-600 mb-4">
-        Live&nbsp;Collaborative&nbsp;Editor
+        Live Collaborative Editor
       </h2>
 
       <input
